@@ -209,7 +209,7 @@
             const targetUrl = "https://api.sms-gate.app/3rdparty/v1/messages";
 
 // Prefix the FULL target URL (no encoding needed in this mode)
-            const proxyUrl = "https://sms-proxy-ncpb.leenduati21.workers.dev/";  // Just add https://corsproxy.io/ in front
+            const proxyUrl = "https://sms-proxy-ncpb.leenduati21.workers.dev/3rdparty/v1/messages";  // Just add https://corsproxy.io/ in front
 
             const response = await fetch(proxyUrl, {
   method: "POST",
