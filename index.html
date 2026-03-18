@@ -205,14 +205,18 @@
         };
 
         try {
-          const response =  const response = await fetch("https://corsproxy.io/https://api.sms-gate.app/3rdparty/v1/messages",{
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": "Basic " + btoa(username + ":" + password)   // this encodes username:password
-            },
-            body: JSON.stringify(payload)
-          });
+          // === BETTER CORS PROXY: allorigins.win (more stable in 2026) ===
+        const targetUrl = "https://api.sms-gate.app/3rdparty/v1/messages";
+        const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(targetUrl);
+
+        const response = await fetch(proxyUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Basic " + btoa(username + ":" + password)
+          },
+          body: JSON.stringify(payload)
+        });
 
           if (response.status === 200 || response.status === 201 || response.status === 202) {
             sent++;
