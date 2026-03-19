@@ -1,54 +1,89 @@
 # NCPB Fertilizer SMS Sender
 
-A simple, **100% browser-based** tool to send bulk SMS reminders to Kenyan farmers using the **SMSGate API**.
+A simple, secure, browser-based tool to send bulk SMS reminders to Kenyan farmers about fertilizer collection days — built for the **National Cereals and Produce Board (NCPB)**.
 
-No server, no installation, no backend needed — just open the HTML file in a browser (or better: host it on GitHub Pages for free).
+This tool lets you paste a message and phone numbers, then sends the SMS through the official SMSGate API — all from a webpage anyone can open (no app installation needed).
 
-Designed especially for Nakuru NCPB fertilizer collection reminders, but can be used for any SMS broadcast campaign.
+### Why We Built This Tool
 
-![Screenshot of the tool](https://via.placeholder.com/800x500.png?text=Screenshot+of+SMS+Sender+Interface)  
-*(Add a real screenshot here later – take one when the tool is running)*
+Originally, we had a Python script that worked perfectly in Google Colab — it sent messages reliably using SMSGate.
 
-## Features
+But when we tried to turn it into a nice webpage hosted on GitHub Pages (free, easy to share), it **stopped working** in the browser.  
+The reason: modern browsers block direct API calls from websites for security reasons (called **CORS**). The SMSGate server said, "I don't know this website — blocked".
 
-- Paste your full SMS message directly (no fixed template anymore)
-- Paste many phone numbers at once (from Excel, WhatsApp, etc.)
-  - One number per line, or separated by commas / spaces
-  - Automatically cleans Kenyan numbers to international format (+2547xxxxxxxx)
-- Real-time progress bar and live log of successes / failures
-- Stop button to pause sending at any time
-- Remembers where you left off (using browser localStorage) — resume after refresh
-- 2.2-second delay between messages (safe for most SMS gateways)
-- Very beginner-friendly code with **lots of comments** — easy for any IT person to understand or modify
+So we solved it properly — without using risky public proxies or changing SMSGate.
 
-## Important – How to Run It Correctly
+### What the Tool Does Now
 
-**Double-clicking the file directly (file:///) will NOT work properly**  
-→ Modern browsers block internet requests (like sending to SMSGate API) from local files for security reasons.
+- Users paste the SMS message (e.g., "Dear farmer, your collection day is Monday...")
+- Paste many phone numbers (from Excel, WhatsApp, etc.)
+- Numbers are automatically cleaned to correct the Kenyan format (+2547xxxxxxxx)
+- Sends one message every 2.2 seconds (safe for the API)
+- Shows live progress bar + log (green = success, red = failed)
+- Can stop sending anytime
+- Remembers where it stopped (even if the page is closed and reopened)
+- If some numbers fail → a button appears to **download failed numbers as CSV**
+- Looks professional with the NCPB logo at the top
+- Has light/dark mode toggle (easy on the eyes)
+- Fully works from any browser (phone or computer)
 
-You have **two easy ways** to make it work:
+### How It Works (Behind the Scenes – Simple Version)
 
-### Option 1 – Recommended: Host on GitHub Pages (free forever)
+1. The webpage lives on GitHub Pages (free hosting) → link: https://leenduati.github.io/SMS_Bulk_NCPB/
+2. When you click "Start Sending SMS", the browser sends the request to **our own private middleman server**
+3. The middleman is a tiny Cloudflare Worker (free forever) → https://sms-proxy-ncpb.leenduati21.workers.dev/
+4. The middleman forwards the request to the real SMSGate API (adds permission so browser allows it)
+5. SMSGate sends the SMS → reply comes back through the middleman → shown in the log
 
-1. Create a GitHub account (if you don't have one)
-2. Create a new repository (e.g. `ncpb-sms-sender`)
-3. Upload the file `smsncpb.html` to the repository
-4. Go to **Settings → Pages**
-5. Under "Source", choose **Deploy from a branch**
-6. Select **main** (or gh-pages) branch and **/ (root)** folder → Save
-7. Wait 1–2 minutes
-8. GitHub will give you a link like:  
-   https://yourusername.github.io/ncpb-sms-sender/smsncpb.html
-9. Open that link in any browser — now it works perfectly!
+This middleman solves the browser security problem cleanly and safely.
 
-### Option 2 – Quick test on your own computer
+### Features Added Over Time
 
-Install one of these free tools and run a tiny web server:
+| Feature                          | Why we added it                          | Status     |
+|----------------------------------|------------------------------------------|------------|
+| Basic sending from webpage       | Make it easy to use without Colab        | Done       |
+| Fix CORS (browser block)         | Original page failed in browser          | Done       |
+| Own Cloudflare proxy             | Safe, free, no third-party dependency    | Done       |
+| NCPB logo at top                 | Looks official and branded               | Done       |
+| Download failed numbers as CSV   | Easy to follow up on bad numbers         | Done       |
+| Soft dark mode toggle            | Better for eyes during long use          | Done       |
+| Progress bar + live log          | See exactly what's happening             | Done       |
+| Resume after refresh/stop        | No need to start over if interrupted     | Done       |
 
-- **VS Code** + Live Server extension  
-  → Right-click `smsncpb.html` → "Open with Live Server"
+### How to Use the Tool
 
-- **Python** (most computers already have it)  
-  Open terminal/command prompt in the folder with the file and run:
-  ```bash
-  python -m http.server 8000
+1. Open the link: https://leenduati.github.io/SMS_Bulk_NCPB/
+2. Enter your SMSGate **username** and **password** (same as in Colab)
+3. Paste the message you want to send
+4. Paste phone numbers (one per line, or separated by comma/space)
+5. Click **Start Sending SMS**
+6. Watch the progress & log
+7. If any numbers fail → click **Download Failed Numbers as CSV**
+8. You can stop anytime with the red button
+
+### Technical Details (for ICT team)
+
+- Frontend: HTML + JavaScript + Tailwind CSS
+- Hosting: GitHub Pages (free, automatic updates)
+- SMS API: SMSGate Cloud Server (same endpoint as original Python script)
+- CORS solution: Custom Cloudflare Worker proxy
+  - URL: https://sms-proxy-ncpb.leenduati21.workers.dev/
+  - Code: src/index.ts (TypeScript handler)
+  - Config: wrangler.jsonc
+- No database, no login, no server costs
+- Security: Credentials are only used in the browser during sending — never saved or sent elsewhere
+
+### How to Update the Tool
+
+1. Edit the file `smsncpb.html` in GitHub (or locally)
+2. Commit & push → GitHub Pages updates automatically (~1 minute)
+3. If changing the proxy → redeploy Worker with `wrangler deploy.`
+
+### Credits & Thanks
+
+- Built with help from Grok (xAI)
+- Original Code from Github from Brian Waweru
+- Uses: Bootstrap (UI), Tailwind (styling), Cloudflare Workers (proxy)
+- Inspired by the original Python script in Google Colab
+
+Happy sending reminders to farmers! 🌾📱
