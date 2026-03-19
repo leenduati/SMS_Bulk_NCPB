@@ -11,11 +11,22 @@
   <style>
     body { font-family: Arial, Helvetica, sans-serif; }
     .progress-bar { transition: width 0.5s ease; }
+    .logo-container img {
+      max-height: 100px;
+      width: auto;
+      display: block;
+      margin: 0 auto 1rem;
+    }
   </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
 
   <div class="container mx-auto px-4 py-8 max-w-3xl">
+
+    <!-- NCPB Logo added here -->
+    <div class="text-center mb-6 logo-container">
+      <img src="./logo.jpeg" alt="NCPB Logo" />
+    </div>
 
     <header class="text-center mb-10">
       <h1 class="text-4xl font-bold text-blue-800">NCPB Fertilizer SMS Sender</h1>
@@ -94,6 +105,14 @@
       <!-- 6. Log / results area -->
       <div id="log" class="max-h-80 overflow-y-auto border border-gray-300 rounded-lg p-4 bg-gray-50 text-sm font-mono hidden"></div>
 
+      <!-- Download Failed Numbers Button (appears only if there are failures) -->
+      <div class="text-center mt-6">
+        <button id="downloadFailed" 
+                class="px-8 py-3 bg-yellow-500 hover:bg-yellow-600 text-white font-bold rounded-lg shadow transition hidden">
+          Download Failed Numbers as CSV
+        </button>
+      </div>
+
     </div>
 
     <footer class="text-center mt-8 text-gray-500 text-sm">
@@ -116,9 +135,11 @@
     const statusText    = document.getElementById('status');
     const currentNum    = document.getElementById('currentNumber');
     const logArea       = document.getElementById('log');
+    const downloadBtn   = document.getElementById('downloadFailed');
 
     let isSending = false;      // Flag: are we currently sending?
     let abort = false;          // Flag: did user click stop?
+    let failedNumbers = [];     // Store failed phones for CSV export
 
     // Simple function to clean Kenyan phone numbers → always +2547xxxxxxxx
     function cleanPhone(phone) {
@@ -173,6 +194,9 @@
         return;
       }
 
+      // Reset failed list
+      failedNumbers = [];
+
       // Start sending mode
       isSending = true;
       abort = false;
@@ -180,6 +204,7 @@
       stopBtn.classList.remove('hidden');
       progressCont.classList.remove('hidden');
       logArea.classList.remove('hidden');
+      downloadBtn.classList.add('hidden');
       logArea.innerHTML = `Starting... ${allNumbers.length} valid numbers found.<br><br>`;
 
       let sent = 0;
@@ -205,30 +230,28 @@
         };
 
         try {
-             // FIXED: Use corsproxy.io prefix mode – supports POST + Authorization better in 2026
-            const targetUrl = "https://api.sms-gate.app/3rdparty/v1/messages";
+          const proxyUrl = "https://sms-proxy-ncpb.leenduati21.workers.dev/3rdparty/v1/messages";
 
-// Prefix the FULL target URL (no encoding needed in this mode)
-            const proxyUrl = "https://sms-proxy-ncpb.leenduati21.workers.dev/3rdparty/v1/messages";  // Just add https://corsproxy.io/ in front
-
-            const response = await fetch(proxyUrl, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": "Basic " + btoa(username + ":" + password)
-  },
-  body: JSON.stringify(payload)
-});
+          const response = await fetch(proxyUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Basic " + btoa(username + ":" + password)
+            },
+            body: JSON.stringify(payload)
+          });
 
           if (response.status === 200 || response.status === 201 || response.status === 202) {
             sent++;
             logArea.innerHTML += `✅ OK → ${phone}<br>`;
           } else {
             failed++;
+            failedNumbers.push(phone);
             logArea.innerHTML += `❌ Failed → ${phone} (error ${response.status})<br>`;
           }
         } catch (err) {
           failed++;
+          failedNumbers.push(phone);
           logArea.innerHTML += `❌ Error → ${phone} (${err.message})<br>`;
         }
 
@@ -248,6 +271,11 @@
 
       logArea.innerHTML += `<br><strong>Summary:</strong> Sent ${sent}, Failed ${failed}<br>`;
 
+      // Show download button if there were failures
+      if (failedNumbers.length > 0) {
+        downloadBtn.classList.remove('hidden');
+      }
+
       // If all done, clear saved progress
       if (sent + failed === total) {
         localStorage.removeItem('sms_last_index');
@@ -262,6 +290,31 @@
       startBtn.disabled = false;
       stopBtn.classList.add('hidden');
       logArea.innerHTML += "<br>⛔ Stopped.<br>";
+    };
+
+    // Download failed numbers as CSV
+    downloadBtn.onclick = () => {
+      if (failedNumbers.length === 0) {
+        alert("No failed numbers to download.");
+        return;
+      }
+
+      // CSV content: header + one number per line
+      let csvContent = "Phone Number\n";
+      failedNumbers.forEach(phone => {
+        csvContent += `"${phone}"\n`;
+      });
+
+      // Create blob and trigger download
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `failed_numbers_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     };
 
   </script>
