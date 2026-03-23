@@ -73,7 +73,7 @@
 +254712345678
 ..."></textarea>
         <p class="text-sm text-gray-600 mt-2">
-          Tip: Copy from Excel → paste here. It will clean them to +2547xxxxxxxx format automatically.
+          Tip: Copy from Excel → paste here. It will clean them to the +2547xxxxxxxx format automatically.
         </p>
       </div>
 
@@ -124,200 +124,226 @@
   <!-- ==================== JAVASCRIPT – all steps explained simply ==================== -->
   <script>
     // Get all important elements from the page
-    const usernameInput = document.getElementById('username');
-    const passwordInput = document.getElementById('password');
-    const messageInput  = document.getElementById('message');
-    const phonesInput   = document.getElementById('phones');
-    const startBtn      = document.getElementById('startSend');
-    const stopBtn       = document.getElementById('stopSend');
-    const progressCont  = document.getElementById('progressContainer');
-    const progressBar   = document.getElementById('progressBar');
-    const progressText  = document.getElementById('progressText');
-    const statusText    = document.getElementById('status');
-    const currentNum    = document.getElementById('currentNumber');
-    const logArea       = document.getElementById('log');
-    const downloadBtn   = document.getElementById('downloadFailed');
+   <script>
+  // Get all important elements from the page
+  const usernameInput = document.getElementById('username');
+  const passwordInput = document.getElementById('password');
+  const messageInput  = document.getElementById('message');
+  const phonesInput   = document.getElementById('phones');
+  const startBtn      = document.getElementById('startSend');
+  const stopBtn       = document.getElementById('stopSend');
+  const progressCont  = document.getElementById('progressContainer');
+  const progressBar   = document.getElementById('progressBar');
+  const progressText  = document.getElementById('progressText');
+  const statusText    = document.getElementById('status');
+  const currentNum    = document.getElementById('currentNumber');
+  const logArea       = document.getElementById('log');
+  const downloadBtn   = document.getElementById('downloadFailed');
 
-    let isSending = false;      // Flag: are we currently sending?
-    let abort = false;          // Flag: did user click stop?
-    let failedNumbers = [];     // Store failed phones for CSV export
+  let isSending = false;
+  let abort = false;
+  let failedNumbers = [];     // valid numbers that failed to send
+  let invalidNumbers = [];    // numbers skipped due to bad format
 
-    // Simple function to clean Kenyan phone numbers → always +2547xxxxxxxx
-    function cleanPhone(phone) {
-      let num = String(phone).replace(/\D/g, '');   // remove everything except digits
-      if (num.startsWith('0') && num.length === 10) {
-        return '+254' + num.slice(1);
-      }
-      if (num.length === 9 && (num.startsWith('7') || num.startsWith('1'))) {
-        return '+254' + num;
-      }
-      if (num.startsWith('254')) {
-        return '+' + num;
-      }
-      if (!num.startsWith('+')) {
-        return '+' + num;
-      }
-      return num;
+  // Clean Kenyan phone numbers → always +2547xxxxxxxx
+  function cleanPhone(phone) {
+    let num = String(phone).replace(/\D/g, '');
+    if (num.startsWith('0') && num.length === 10) {
+      return '+254' + num.slice(1);
+    }
+    if (num.length === 9 && (num.startsWith('7') || num.startsWith('1'))) {
+      return '+254' + num;
+    }
+    if (num.startsWith('254')) {
+      return '+' + num;
+    }
+    if (!num.startsWith('+')) {
+      return '+' + num;
+    }
+    return num;
+  }
+
+  // When user clicks "Start Sending"
+  startBtn.onclick = async () => {
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value.trim();
+    const rawMessage = messageInput.value.trim();
+
+    if (!username || !password) {
+      alert("Please fill in username and password");
+      return;
+    }
+    if (!rawMessage) {
+      alert("Please write or paste the message");
+      return;
     }
 
-    // When user clicks "Start Sending"
-    startBtn.onclick = async () => {
-      const username = usernameInput.value.trim();
-      const password = passwordInput.value.trim();
-      const rawMessage = messageInput.value.trim();
+    // Get all phone numbers from the textarea
+    const rawPhones = phonesInput.value.trim();
+    if (!rawPhones) {
+      alert("Please paste at least one phone number");
+      return;
+    }
 
-      if (!username || !password) {
-        alert("Please fill in username and password");
-        return;
+    // Reset counters & lists
+    failedNumbers = [];
+    invalidNumbers = [];
+
+    // Split and process numbers
+    const rawList = rawPhones.split(/[\n,;\s]+/).map(n => n.trim()).filter(n => n.length > 0);
+
+    const allNumbers = [];
+    rawList.forEach(raw => {
+      const cleaned = cleanPhone(raw);
+      if (cleaned.startsWith('+254') && cleaned.length === 13) {
+        allNumbers.push(cleaned);
+      } else {
+        invalidNumbers.push(raw); // keep original bad input for display
       }
-      if (!rawMessage) {
-        alert("Please write or paste the message");
-        return;
-      }
+    });
 
-      // Get all phone numbers from the textarea
-      const rawPhones = phonesInput.value.trim();
-      if (!rawPhones) {
-        alert("Please paste at least one phone number");
-        return;
-      }
+    if (allNumbers.length === 0) {
+      alert("No valid Kenyan phone numbers found.\n\nExamples of valid: 0712345678, +254712345678, 254712345678");
+      return;
+    }
 
-      // Split by new lines, commas, spaces → then clean each one
-      const allNumbers = rawPhones
-        .split(/[\n,;\s]+/)               // split on new line, comma, semicolon, space
-        .map(n => n.trim())
-        .filter(n => n.length > 5)        // ignore very short junk
-        .map(cleanPhone)
-        .filter(n => n.startsWith('+254') && n.length === 13);  // only keep valid Kenyan numbers
+    if (invalidNumbers.length > 0) {
+      logArea.innerHTML += `<span style="color:#fd7e14;">⚠️ ${invalidNumbers.length} numbers skipped (invalid format):</span><br>`;
+      invalidNumbers.forEach(n => {
+        logArea.innerHTML += `   - ${n}<br>`;
+      });
+      logArea.innerHTML += "<br>";
+    }
 
-      if (allNumbers.length === 0) {
-        alert("No valid Kenyan phone numbers found. Example: 0712345678 or +254712345678");
-        return;
-      }
+    // Start sending mode
+    isSending = true;
+    abort = false;
+    startBtn.disabled = true;
+    stopBtn.classList.remove('hidden');
+    progressCont.classList.remove('hidden');
+    logArea.classList.remove('hidden');
+    logArea.innerHTML += `Starting... ${allNumbers.length} valid numbers to send.<br><br>`;
 
-      // Reset failed list
-      failedNumbers = [];
+    let sent = 0;
+    let failed = 0;
+    const total = allNumbers.length;
 
-      // Start sending mode
-      isSending = true;
-      abort = false;
-      startBtn.disabled = true;
-      stopBtn.classList.remove('hidden');
-      progressCont.classList.remove('hidden');
-      logArea.classList.remove('hidden');
-      downloadBtn.classList.add('hidden');
-      logArea.innerHTML = `Starting... ${allNumbers.length} valid numbers found.<br><br>`;
+    let startIndex = Number(localStorage.getItem('sms_last_index')) || 0;
+    if (startIndex >= total) startIndex = 0;
 
-      let sent = 0;
-      let failed = 0;
-      const total = allNumbers.length;
+    for (let i = startIndex; i < total; i++) {
+      if (!isSending || abort) break;
 
-      // Simple resume: remember last sent index (in case page refreshes)
-      let startIndex = Number(localStorage.getItem('sms_last_index')) || 0;
-      if (startIndex >= total) startIndex = 0;
+      const phone = allNumbers[i];
+      currentNum.textContent = `Sending to ${phone} (${i+1} of ${total})`;
+      progressText.textContent = `${sent + failed} / ${total}`;
+      progressBar.style.width = `${Math.round(((sent + failed) / total) * 100)}%`;
 
-      for (let i = startIndex; i < total; i++) {
-        if (!isSending || abort) break;
+      const payload = {
+        textMessage: { text: rawMessage },
+        phoneNumbers: [phone]
+      };
 
-        const phone = allNumbers[i];
-        currentNum.textContent = `Sending to ${phone} (${i+1} of ${total})`;
-        progressText.textContent = `${sent + failed} / ${total}`;
-        progressBar.style.width = `${Math.round(((sent + failed) / total) * 100)}%`;
+      try {
+        const proxyUrl = "https://sms-proxy-ncpb.leenduati21.workers.dev/3rdparty/v1/messages";
 
-        // The exact payload your original script used
-        const payload = {
-          textMessage: { text: rawMessage },
-          phoneNumbers: [phone]
-        };
+        const response = await fetch(proxyUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Basic " + btoa(username + ":" + password)
+          },
+          body: JSON.stringify(payload)
+        });
 
-        try {
-          const proxyUrl = "https://sms-proxy-ncpb.leenduati21.workers.dev/3rdparty/v1/messages";
-
-          const response = await fetch(proxyUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": "Basic " + btoa(username + ":" + password)
-            },
-            body: JSON.stringify(payload)
-          });
-
-          if (response.status === 200 || response.status === 201 || response.status === 202) {
-            sent++;
-            logArea.innerHTML += `✅ OK → ${phone}<br>`;
-          } else {
-            failed++;
-            failedNumbers.push(phone);
-            logArea.innerHTML += `❌ Failed → ${phone} (error ${response.status})<br>`;
-          }
-        } catch (err) {
+        if (response.status === 200 || response.status === 201 || response.status === 202) {
+          sent++;
+          logArea.innerHTML += `✅ OK → ${phone}<br>`;
+        } else {
           failed++;
           failedNumbers.push(phone);
-          logArea.innerHTML += `❌ Error → ${phone} (${err.message})<br>`;
+          logArea.innerHTML += `❌ Failed → ${phone} (error ${response.status})<br>`;
         }
-
-        // Save progress (so if page closes, next time starts from here)
-        localStorage.setItem('sms_last_index', i + 1);
-
-        // Wait 2.2 seconds before next message (polite to the API)
-        await new Promise(r => setTimeout(r, 2200));
+      } catch (err) {
+        failed++;
+        failedNumbers.push(phone);
+        logArea.innerHTML += `❌ Error → ${phone} (${err.message})<br>`;
       }
 
-      // Finished or stopped
-      isSending = false;
-      startBtn.disabled = false;
-      stopBtn.classList.add('hidden');
-      statusText.textContent = "Finished";
-      currentNum.textContent = `Done → Sent: ${sent} | Failed: ${failed}`;
+      localStorage.setItem('sms_last_index', i + 1);
+      await new Promise(r => setTimeout(r, 2200));
+    }
 
-      logArea.innerHTML += `<br><strong>Summary:</strong> Sent ${sent}, Failed ${failed}<br>`;
+    // Finished or stopped
+    isSending = false;
+    startBtn.disabled = false;
+    stopBtn.classList.add('hidden');
+    statusText.textContent = "Finished";
 
-      // Show download button if there were failures
-      if (failedNumbers.length > 0) {
-        downloadBtn.classList.remove('hidden');
-      }
+    let summary = `Done → Sent: ${sent} | Failed: ${failed}`;
+    if (invalidNumbers.length > 0) {
+      summary += ` | Invalid/skipped: ${invalidNumbers.length}`;
+    }
+    currentNum.textContent = summary;
 
-      // If all done, clear saved progress
-      if (sent + failed === total) {
-        localStorage.removeItem('sms_last_index');
-      }
-    };
-
-    // Stop button clicked
-    stopBtn.onclick = () => {
-      abort = true;
-      isSending = false;
-      statusText.textContent = "Stopped by user";
-      startBtn.disabled = false;
-      stopBtn.classList.add('hidden');
-      logArea.innerHTML += "<br>⛔ Stopped.<br>";
-    };
-
-    // Download failed numbers as CSV
-    downloadBtn.onclick = () => {
-      if (failedNumbers.length === 0) {
-        alert("No failed numbers to download.");
-        return;
-      }
-
-      // CSV content: header + one number per line
-      let csvContent = "Phone Number\n";
-      failedNumbers.forEach(phone => {
-        csvContent += `"${phone}"\n`;
+    let logSummary = `<br><strong>Summary:</strong> Sent ${sent}, Failed ${failed}`;
+    if (invalidNumbers.length > 0) {
+      logSummary += `, Invalid/skipped ${invalidNumbers.length}<br>`;
+      logSummary += "<strong>Invalid numbers:</strong><br>";
+      invalidNumbers.forEach(n => {
+        logSummary += `   - ${n}<br>`;
       });
+    }
+    if (failedNumbers.length > 0) {
+      logSummary += "<br><strong>Failed numbers:</strong><br>";
+      failedNumbers.forEach(n => {
+        logSummary += `   - ${n}<br>`;
+      });
+    }
+    logArea.innerHTML += logSummary + "<br>";
 
-      // Create blob and trigger download
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `failed_numbers_${new Date().toISOString().slice(0,10)}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    };
+    if (failedNumbers.length > 0) {
+      downloadBtn.classList.remove('hidden');
+    }
 
-  </script>
+    if (sent + failed === total) {
+      localStorage.removeItem('sms_last_index');
+    }
+  };
+
+  // Stop button clicked
+  stopBtn.onclick = () => {
+    abort = true;
+    isSending = false;
+    statusText.textContent = "Stopped by user";
+    startBtn.disabled = false;
+    stopBtn.classList.add('hidden');
+    logArea.innerHTML += "<br>⛔ Stopped.<br>";
+  };
+
+  // Download failed numbers as CSV (only real failed sends, not invalid ones)
+  downloadBtn.onclick = () => {
+    if (failedNumbers.length === 0) {
+      alert("No failed numbers to download.");
+      return;
+    }
+
+    let csvContent = "Phone Number\n";
+    failedNumbers.forEach(phone => {
+      csvContent += `"${phone}"\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `failed_numbers_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+</script>
 </body>
 </html>
