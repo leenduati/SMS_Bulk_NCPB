@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <!-- Favicon: uses the same logo.jpeg as the tab icon -->
+  <link rel="icon" type="image/jpeg" href="./logo.jpeg">
   <title>NAKURU NCPB Fertilizer SMS Sender</title>
   
   <!-- Tailwind CSS -->
@@ -16,6 +18,13 @@
       width: auto;
       display: block;
       margin: 0 auto 1rem;
+    }
+    .stats-box {
+      background: #f0f4ff;
+      border-radius: 12px;
+      padding: 1rem;
+      margin-top: 1.5rem;
+      border-left: 5px solid #3b82f6;
     }
   </style>
 </head>
@@ -105,6 +114,15 @@
       <!-- Log / results area -->
       <div id="log" class="max-h-80 overflow-y-auto border border-gray-300 rounded-lg p-4 bg-gray-50 text-sm font-mono hidden"></div>
 
+      <!-- Stats Summary (shows after sending) -->
+      <div id="statsSummary" class="stats-box hidden">
+        <h3 class="text-lg font-semibold text-blue-800 mb-2">Send Summary</h3>
+        <p id="sentCount" class="text-green-700">Sent: 0</p>
+        <p id="failedCount" class="text-red-700">Failed: 0</p>
+        <p id="invalidCount" class="text-orange-600">Invalid/skipped: 0</p>
+        <p id="totalAttempted" class="text-gray-800 font-bold">Total attempted: 0</p>
+      </div>
+
       <!-- Download Failed Numbers Button -->
       <div class="text-center mt-6">
         <button id="downloadFailed" 
@@ -137,6 +155,11 @@
     const currentNum    = document.getElementById('currentNumber');
     const logArea       = document.getElementById('log');
     const downloadBtn   = document.getElementById('downloadFailed');
+    const statsSummary  = document.getElementById('statsSummary');
+    const sentCountEl   = document.getElementById('sentCount');
+    const failedCountEl = document.getElementById('failedCount');
+    const invalidCountEl= document.getElementById('invalidCount');
+    const totalAttemptedEl = document.getElementById('totalAttempted');
 
     let isSending = false;
     let abort = false;
@@ -219,6 +242,8 @@
       stopBtn.classList.remove('hidden');
       progressCont.classList.remove('hidden');
       logArea.classList.remove('hidden');
+      downloadBtn.classList.add('hidden');
+      statsSummary.classList.add('hidden');
       logArea.innerHTML += `Starting... ${allNumbers.length} valid numbers to send.<br><br>`;
 
       let sent = 0;
@@ -282,6 +307,13 @@
         summary += ` | Invalid/skipped: ${invalidNumbers.length}`;
       }
       currentNum.textContent = summary;
+
+      // Show stats summary box
+      statsSummary.classList.remove('hidden');
+      sentCountEl.textContent = `Sent: ${sent}`;
+      failedCountEl.textContent = `Failed: ${failed}`;
+      invalidCountEl.textContent = `Invalid/skipped: ${invalidNumbers.length}`;
+      totalAttemptedEl.textContent = `Total attempted: ${sent + failed}`;
 
       let logSummary = `<br><strong>Summary:</strong> Sent ${sent}, Failed ${failed}`;
       if (invalidNumbers.length > 0) {
